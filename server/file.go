@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"image/gif"
 	"image/jpeg"
 	"image/png"
@@ -113,8 +114,9 @@ func fileAutoHandler() http.Handler {
 }
 
 func writeResponse(w http.ResponseWriter, msg string, statusCode int) {
-	w.WriteHeader(401)
-	w.Write([]byte(msg))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	w.Write([]byte(fmt.Sprintf("{\"message\":\"%s\"}", msg)))
 	return
 }
 
@@ -137,9 +139,10 @@ func Run() {
 	svr.Handle("/files/", http.StripPrefix("/files/", fileAutoHandler()))
 	svr.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
 		f, h, err := r.FormFile("file")
-		if err != nil {
+		if err != nil || h == nil {
 			log.Println("没有找到上传的文件", err)
 			writeResponse(w, "没有找到上传的文件", 500)
+			return
 		}
 		u := uuid.New()
 
@@ -149,12 +152,35 @@ func Run() {
 			writeResponse(w, "无法识别文件类型", 500)
 		}
 		saveFileName := u.String() + "." + hs[len(hs)-1]
-		file, _ := os.Create("storage/" + saveFileName)
+		file, _ := os.Create(C.StoragePath + saveFileName)
 
 		io.Copy(file, f)
-		w.Write([]byte(saveFileName))
+		fileURL := ""
+		if C.HostURL != "" {
+			fileURL = C.HostURL + "/" + "files" + "/" + saveFileName
+		} else {
+			fileURL = "/" + "files" + "/" + saveFileName
+
+		}
+		w.Write([]byte(fileURL))
+		writeLog(saveFileName)
+		fmt.Print(".")
 		defer file.Close()
 		defer f.Close()
 	})
 	http.ListenAndServe(":"+C.Port, svr)
+}
+
+var logFile *os.File
+
+func writeLog(fl string) {
+	logFile.WriteString(fl + "\n")
+}
+
+func init() {
+	var err error
+	logFile, err = os.OpenFile("./files.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalln("log create fail", err)
+	}
 }

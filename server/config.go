@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 )
 
 // Config 配置文件
@@ -14,6 +15,7 @@ type Config struct {
 	StoragePath string `json:"storage_path"`
 	AutoResize  bool   `json:"auto_resize"`
 	AuthKey     string `json:"auto_key"`
+	HostURL     string `json:"host_url"`
 }
 
 // C 配置
@@ -29,7 +31,7 @@ func init() {
 		if err != nil {
 			fmt.Println("创建配置文件失败", err)
 		}
-		C.StoragePath = "./storage"
+		C.StoragePath = "storage/"
 		C.AutoResize = true
 		C.Port = "8080"
 		js, _ := json.MarshalIndent(C, "", "  ")
@@ -48,6 +50,7 @@ func init() {
 		log.Println("配置文件不是有效的json格式", err)
 		os.Exit(1)
 	}
+	C.StoragePath = getPath(C.StoragePath)
 	initStoragePath()
 }
 
@@ -60,4 +63,11 @@ func initStoragePath() {
 			os.Exit(1)
 		}
 	}
+}
+
+func getPath(p string) string {
+	if strings.HasSuffix(p, "/") {
+		return p
+	}
+	return p + "/"
 }

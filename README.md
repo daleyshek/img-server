@@ -1,3 +1,5 @@
 # 图片服务器
 
-待更新..  
+`POST /upload`  
+
+`GET /files/...`   
