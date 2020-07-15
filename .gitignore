@@ -1,3 +1,7 @@
 *.json
 .vscode
 output
+img-server
+storage
+img-server.log
+img-server
