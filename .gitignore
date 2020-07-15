@@ -2,6 +2,6 @@
 .vscode
 output
 img-server
-storage
+storage/*
 img-server.log
 img-server
