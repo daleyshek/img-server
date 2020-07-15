@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"image/gif"
@@ -187,7 +188,10 @@ func Run() {
 			writeLog(strings.Join(paths, ","))
 			allPaths = append(allPaths, paths...)
 		}
-		w.Write([]byte(strings.Join(allPaths, ",")))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		js, _ := json.Marshal(allPaths)
+		w.Write(js)
 	})
 	log.Println("start at " + C.Port)
 	http.ListenAndServe(C.Port, svr)
