@@ -179,8 +179,7 @@ func Run() {
 		}
 		fm := r.MultipartForm
 		var allPaths []string
-		for k, f := range fm.File {
-			log.Println(k, f[0].Filename, len(f))
+		for _, f := range fm.File {
 			paths, err := hanleUploadFile(w, r, f)
 			if err != nil {
 				continue
