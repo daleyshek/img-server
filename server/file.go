@@ -172,6 +172,13 @@ func Run() {
 	svr := http.NewServeMux()
 	svr.Handle(C.RoutePrefix+"/files/", http.StripPrefix(C.RoutePrefix+"/files/", fileAutoHandler()))
 	svr.HandleFunc(C.RoutePrefix+"/upload", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+		w.Header().Add("Access-Control-Allow-Methods", "GET,POST,PUT")
+		w.Header().Add("Access-Control-Allow-Credentials", "true")
+		w.Header().Add("Access-Control-Allow-Headers", "X-Requested-With, x-csrf-token, Content-Type, Accept, Connection, User-Agent, Cookie, Access-Token")
+		if r.Method == "OPTIONS" {
+			return
+		}
 		err := r.ParseMultipartForm(1024 * 1024 * 1024 * 500) //最大500Mb
 		if err != nil {
 			log.Println("无法解析文件", err)
