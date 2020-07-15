@@ -1,12 +1,14 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"image/gif"
 	"image/jpeg"
 	"image/png"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"strconv"
@@ -133,42 +135,63 @@ func writeFile(w http.ResponseWriter, filePath string) {
 	io.Copy(w, ff)
 }
 
-// Run run http server
-func Run() {
-	svr := http.NewServeMux()
-	svr.Handle("/files/", http.StripPrefix("/files/", fileAutoHandler()))
-	svr.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
-		f, h, err := r.FormFile("file")
-		if err != nil || h == nil {
+func hanleUploadFile(w http.ResponseWriter, r *http.Request, fileHeaders []*multipart.FileHeader) (paths []string, err error) {
+	var path string
+	for _, fh := range fileHeaders {
+		fi, err := fh.Open()
+		if err != nil {
 			log.Println("没有找到上传的文件", err)
 			writeResponse(w, "没有找到上传的文件", 500)
-			return
+			return paths, errors.New("没有找到上传的文件")
 		}
 		u := uuid.New()
-
-		hs := strings.Split(h.Filename, ".")
+		hs := strings.Split(fh.Filename, ".")
 		if len(hs) < 2 {
 			log.Println("没有找到上传的文件", err)
-			writeResponse(w, "无法识别文件类型", 500)
+			return paths, errors.New("无法识别文件类型")
 		}
 		saveFileName := u.String() + "." + hs[len(hs)-1]
 		file, _ := os.Create(C.StoragePath + saveFileName)
-
-		io.Copy(file, f)
-		fileURL := ""
-		if C.HostURL != "" {
-			fileURL = C.HostURL + "/" + "files" + "/" + saveFileName
-		} else {
-			fileURL = "/" + "files" + "/" + saveFileName
-
-		}
-		w.Write([]byte(fileURL))
-		writeLog(saveFileName)
-		fmt.Print(".")
 		defer file.Close()
-		defer f.Close()
+		defer fi.Close()
+		io.Copy(file, fi)
+		if C.HostURL != "" {
+			path = C.HostURL + C.RoutePrefix + "/" + "files" + "/" + saveFileName
+		} else {
+			path = C.RoutePrefix + "/" + "files" + "/" + saveFileName
+		}
+		fmt.Print(".")
+		paths = append(paths, path)
+	}
+	return paths, nil
+}
+
+// Run run http server
+func Run() {
+	svr := http.NewServeMux()
+	svr.Handle(C.RoutePrefix+"/files/", http.StripPrefix(C.RoutePrefix+"/files/", fileAutoHandler()))
+	svr.HandleFunc(C.RoutePrefix+"/upload", func(w http.ResponseWriter, r *http.Request) {
+		err := r.ParseMultipartForm(1024 * 1024 * 1024 * 500) //最大500Mb
+		if err != nil {
+			log.Println("无法解析文件", err)
+			writeResponse(w, "无法解析文件", 500)
+			return
+		}
+		fm := r.MultipartForm
+		var allPaths []string
+		for k, f := range fm.File {
+			log.Println(k, f[0].Filename, len(f))
+			paths, err := hanleUploadFile(w, r, f)
+			if err != nil {
+				continue
+			}
+			writeLog(strings.Join(paths, ","))
+			allPaths = append(allPaths, paths...)
+		}
+		w.Write([]byte(strings.Join(allPaths, ",")))
 	})
-	http.ListenAndServe(":"+C.Port, svr)
+	log.Println("start at " + C.Port)
+	http.ListenAndServe(C.Port, svr)
 }
 
 var logFile *os.File
@@ -179,7 +202,7 @@ func writeLog(fl string) {
 
 func init() {
 	var err error
-	logFile, err = os.OpenFile("./files.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	logFile, err = os.OpenFile("./img-server.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalln("log create fail", err)
 	}
